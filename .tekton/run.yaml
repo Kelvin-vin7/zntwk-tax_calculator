@@ -1,0 +1,20 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: taxcalc-pipeline-run-
+spec:
+  pipelineRef:
+    name: taxcalc-pipeline
+  params:
+    - name: repo-url
+      value: "https://github.com/Kelvin-vin7/zntwk-tax_calculator.git"
+    - name: branch
+      value: "main"
+    - name: build-image
+      value: "image-registry.openshift-image-registry.svc:5000/sn-labs-kelvin057/taxcalc:latest"
+    - name: app-name
+      value: "taxcalc-pipeline"
+  workspaces:
+    - name: pipeline-workspace
+      persistentVolumeClaim:
+        claimName: pipelinerun-pvc
