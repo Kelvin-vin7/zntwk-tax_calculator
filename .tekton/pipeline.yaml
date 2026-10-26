@@ -1,0 +1,69 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: taxcalc-pipeline
+spec:
+  params:
+    - name: repo-url
+    - name: branch
+      default: main
+    - name: build-image
+    - name: app-name
+      default: taxcalc-pipeline
+  workspaces:
+    - name: pipeline-workspace
+  tasks:
+    - name: init
+      taskRef:
+        name: cleanup
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+
+    - name: clone
+      runAfter: [init]
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: pipeline-workspace
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.branch)
+
+    - name: tests
+      runAfter: [clone]
+      taskRef:
+        name: jasmine-test
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+
+    - name: build
+      runAfter: [tests]
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      workspaces:
+        - name: source
+          workspace: pipeline-workspace
+      params:
+        - name: IMAGE
+          value: $(params.build-image)
+
+    - name: deploy
+      runAfter: [build]
+      taskRef:
+        name: openshift-client
+        kind: ClusterTask
+      params:
+        - name: SCRIPT
+          value: |
+            oc create deployment $(params.app-name) --image=$(params.build-image) --dry-run=client -o yaml | oc apply -f -
+            oc rollout status deployment/$(params.app-name)
+            oc get service $(params.app-name) || oc expose deployment $(params.app-name) --port=8080
+            oc get route $(params.app-name) || oc expose service $(params.app-name)
+            oc get route $(params.app-name)
